@@ -1,39 +1,44 @@
-from fastapi import FastAPI, Form
+ main.py
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+import board
+import busio
+from adafruit_ina219 import INA219
+
+# Set up I2C and sensor
+i2c_bus = busio.I2C(board.SCL, board.SDA)
+ina = INA219(i2c_bus)
+# optional; default config works for most 0.1 ohm shunt setups
+
+# FastAPI app
 app = FastAPI()
 
-# Allow all origins (for testing)
+# CORS for cross-device access (e.g., from Jetson/PC)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # In production, restrict to your frontend device's IP
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 @app.get("/")
-def read_root():
-    return {"message": "Hello from FastAPI"}
+def root():
+    return {"message": "INA219 Sensor API Running"}
 
 @app.get("/data")
 def get_sensor_data():
-    return {
-        "voltage": 3.7,
-        "current": 100,
-        "power": 370,
-        "status": "Discharging"
-    }
-
-@app.get("/ai_status")
-def get_ai_data():
-    return {
-        "backup_time": "2 hours",
-        "recommendation": "Discharge",
-        "mode": "Auto"
-    }
-
-@app.post("/control")
-def control_device(gpio: str = Form(...), value: str = Form(...)):
-    print(f"GPIO: {gpio}, Value: {value}")
-    return {"status": "success", "gpio": gpio, "value": value}
+    try:
+        voltage = round(ina.bus_voltage + (ina.shunt_voltage / 1000), 2)  # Total voltage
+        current = round(ina.current, 2)  # mA
+        power = round(ina.power, 2)  # mW
+        status = "Discharging" if current > 0 else "Idle"
+        return {
+            "voltage": voltage,
+            "current": current,
+            "power": power,
+            "status": status
+        }
+    except Exception as e:
+        return {"error": str(e)}

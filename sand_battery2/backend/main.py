@@ -1,38 +1,36 @@
- main.py
-from fastapi import FastAPI
+# main.py
+from fastapi import FastAPI, Form
 from fastapi.middleware.cors import CORSMiddleware
-
 import board
 import busio
 from adafruit_ina219 import INA219
+from control_logic import control_gpio
 
-# Set up I2C and sensor
-i2c_bus = busio.I2C(board.SCL, board.SDA)
-ina = INA219(i2c_bus)
-# optional; default config works for most 0.1 ohm shunt setups
-
-# FastAPI app
 app = FastAPI()
 
-# CORS for cross-device access (e.g., from Jetson/PC)
+# CORS setup for Jetson or any frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, restrict to your frontend device's IP
+    allow_origins=["*"],  # Replace with Jetson's IP for security
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# INA219 setup
+i2c_bus = busio.I2C(board.SCL, board.SDA)
+ina = INA219(i2c_bus)
+
 @app.get("/")
 def root():
-    return {"message": "INA219 Sensor API Running"}
+    return {"message": "Sand Battery API running on Raspberry Pi"}
 
 @app.get("/data")
 def get_sensor_data():
     try:
-        voltage = round(ina.bus_voltage + (ina.shunt_voltage / 1000), 2)  # Total voltage
-        current = round(ina.current, 2)  # mA
-        power = round(ina.power, 2)  # mW
+        voltage = round(ina.bus_voltage + (ina.shunt_voltage / 1000), 2)
+        current = round(ina.current, 2)
+        power = round(ina.power, 2)
         status = "Discharging" if current > 0 else "Idle"
         return {
             "voltage": voltage,
@@ -42,3 +40,9 @@ def get_sensor_data():
         }
     except Exception as e:
         return {"error": str(e)}
+
+@app.post("/control")
+def gpio_control(gpio: str = Form(...), value: str = Form(...)):
+    state = value == "1"
+    control_gpio(gpio, state)
+    return {"message": f"Set {gpio} to {'ON' if state else 'OFF'}"}

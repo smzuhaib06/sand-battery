@@ -5,7 +5,10 @@ try:
         "grid": 7,
         "sand": 11,
         "load": 13,
-        "heater": 15
+        "heater": 15,
+        "mosfet1": 17,
+        "mosfet2": 27,
+        "mosfet3": 22
     }
     for pin in gpio_pins.values():
         GPIO.setup(pin, GPIO.OUT)
